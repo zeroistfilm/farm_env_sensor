@@ -1,90 +1,44 @@
-#include "DFRobot_MICS.h"
-#include "DFRobot_EnvironmentalSensor.h"
-#include "DFRobot_OxygenSensor.h"
-#define CALIBRATION_TIME   0.1      
-#define COLLECT_NUMBER    10             // collect number, the collection range is 1-100.
-#define Oxygen_IICAddress ADDRESS_3
-
-
 #include <SPI.h>
 #include <Ethernet.h>
-#include <Adafruit_SSD1306.h>
 
-#define DLY_5000  5000
-#define DLY_1000  1000
+#include <Adafruit_SSD1306.h> //OLED
+#include "DFRobot_MICS.h" //가스센서
+#include "DFRobot_EnvironmentalSensor.h" //환경센서
+#include "DFRobot_OxygenSensor.h" //산소센서
 
 
 
 
-byte mac[] = {
-  0xDE, 0xAD, 0xBE, 0xEF, 0xFE, 0xED
-};
+//for PMS sensor
+
+//초기화
+//이더넷
+byte mac[] = {0xDE, 0xAD, 0xBE, 0xEF, 0xFE, 0xED};
 IPAddress ip(192, 168, 0, 177);
 EthernetServer server(80);
-
-DFRobot_EnvironmentalSensor environment(/*addr = */0x22, /*pWire = */&Wire);
-DFRobot_MICS_I2C mics(&Wire, 0x78);
+//OLED
 #define SCREEN_WIDTH 128              // OLED 디스플레이의 가로 픽셀수
-#define SCREEN_HEIGHT 32       
-#define OLED_RESET     -1 
-Adafruit_SSD1306 display(SCREEN_WIDTH, SCREEN_HEIGHT, &Wire, OLED_RESET); 
+#define SCREEN_HEIGHT 32
+#define OLED_RESET     -1
+Adafruit_SSD1306 display(SCREEN_WIDTH, SCREEN_HEIGHT, &Wire, OLED_RESET);
+//가스센서
+#define CALIBRATION_TIME   3             // 추천값 3
+#define COLLECT_NUMBER    10             // collect number, the collection range is 1-100.
+DFRobot_MICS_I2C mics(&Wire, 0x78);
+//환경센서
+DFRobot_EnvironmentalSensor environment(/*addr = */0x22, /*pWire = */&Wire);
+//산소센서
 DFRobot_OxygenSensor Oxygen;
+//미세먼지
+unsigned char pmsbytes[31];
+#define HEAD_1 0x42
+#define HEAD_2 0x4d
+#define DLY_5000  5000
+#define DLY_1000  1000
+//RS232
 
 
-unsigned char pms[32]={0,};
-void ClearPMS7003(){
-  char temp;
-  while (Serial1.available() ){                 // While nothing is received
-    temp=Serial1.read();
-   }
-
-  delay(100);
-}
-
-
-
-void setup() {
-  // put your setup code here, to run once:
-
-
-   Serial1.setTX(12);
-   Serial1.setRX(13);
-   
-   Serial1.begin(57600);
-   Serial1.print("Serial1 is open");
-
-
-
-
-  Serial.begin(115200);
-
-
-  display.begin(SSD1306_SWITCHCAPVCC, 0x3C);
-  display.clearDisplay();
-
-  Ethernet.init(17);  // WIZnet W5100S-EVB-Pico
-  Ethernet.begin(mac, ip);
-
-  // Check for Ethernet hardware present
-  if (Ethernet.hardwareStatus() == EthernetNoHardware) {
-    Serial.println("Ethernet shield was not found.  Sorry, can't run without hardware. :(");
-    while (true) {
-      delay(1); // do nothing, no point running without Ethernet hardware
-    }
-  }
-  if (Ethernet.linkStatus() == LinkOFF) {
-    Serial.println("Ethernet cable is not connected.");
-  }
-
-
-
-    
-  // start the server
-  server.begin();
-  Serial.print("server is at ");
-  Serial.println(Ethernet.localIP());
-
-
+void displayWithMsg(String msg){
   display.clearDisplay();
   display.setTextSize(1);
   display.setTextColor(WHITE);
@@ -104,133 +58,143 @@ void setup() {
 
     if (error == 0)
     {
-         
+
       Serial.print("I2C device found at address 0x");
       if (address < 16)
       Serial.print("0");
-      Serial.print(address, HEX);      
+      Serial.print(address, HEX);
       Serial.println("  !");
- 
-      
-      
       display.setCursor(30+nDevices*20,8);
       display.print(address, HEX);
       nDevices++;
     }
   }
-  display.println("  !");
-
-  
- 
-
+  display.setCursor(0,16);
+  display.print(msg);//CALIBRATION_TIME*60-count);
   display.display();
-  delay(1000);
+  
+}
 
-  
-  
-  while(!Oxygen.begin(0x73)) {
-    Serial.println(" Oxygen I2c device number error !");
-    delay(1000);
-  } 
+void setup() {
+//PICO
+  Serial.begin(9600);
+//미세먼지
+  Serial1.begin(9600);
+//RS232
+  Serial2.begin(9600);
 
+
+//이더넷
+  Ethernet.init(17);  // WIZnet W5100S-EVB-Pico
+  Ethernet.begin(mac, ip);
+  // Check for Ethernet hardware present
+  if (Ethernet.hardwareStatus() == EthernetNoHardware) {
+    Serial.println("Ethernet shield was not found.  Sorry, can't run without hardware. :(");
+    while (true) {
+      delay(1); // do nothing, no point running without Ethernet hardware
+    }
+  }
+  if (Ethernet.linkStatus() == LinkOFF) {
+    Serial.println("Ethernet cable is not connected.");
+  }
+  server.begin();
+//OLED
+  display.begin(SSD1306_SWITCHCAPVCC, 0x3C);
+  display.clearDisplay();
+
+//I2C, Ethernet Info Display
+  Serial.println(Ethernet.localIP());
   
-  while(!mics.begin()){
-    Serial.println("mics NO Deivces !");
-    delay(1000);
-  } Serial.println("mics Device connected successfully !");
-  
-  while(environment.begin() != 0){
+
+
+
+//환경센서
+while(environment.begin() != 0){
     Serial.println(" environment Sensor initialize failed!!");
     delay(1000);
   }
   Serial.println(" environment Sensor  initialize success!!");
+//산소센서
+  while(!Oxygen.begin(0x73)) {
+    Serial.println(" Oxygen I2c device number error !");
+    delay(1000);
+  }
 
-
-  uint8_t mode = mics.getPowerState();
+//가스센서
+ while(!mics.begin()){
+    Serial.println("mics NO Deivces !");
+    delay(1000);
+  } Serial.println("mics Device connected successfully !");
+    uint8_t mode = mics.getPowerState();
   if(mode == SLEEP_MODE){
     mics.wakeUpMode();
     Serial.println("wake up sensor success!");
   }else{
     Serial.println("The sensor is wake up mode");
   }
+  int count = 0;
   while(!mics.warmUpTime(CALIBRATION_TIME)){
     Serial.println("Please wait until the warm-up time is over!");
+    displayWithMsg(String(CALIBRATION_TIME*60-count));
     delay(1000);
+    count++;
   }
 
 
 
 }
 
+int PM1_0_val=0;
+int PM2_5_val=0;
+int PM10_val=0;
+//이더넷
+//OLED
+//가스센서
+//환경센서
+//산소센서
+//미세먼지
+//RS232
+
 void loop() {
 
- 
-  static int cur_time=0, pre_time=0;
-  static int cur_time_1=0, pre_time_1=0;
-   
-   cur_time = millis();
-  
-  static byte temperature = 0;
-  static byte humidity = 0;
+  displayWithMsg("working");   
+  if(Serial1.available()>=31){
+    int i=0;
 
-  int chksum=0,res=0;;
-
-  int PM_01;
-  int PM_25;
-  int PM_10;
-
-
+    //initialize first two bytes with 0x00
+    pmsbytes[0] = 0x00;
+    pmsbytes[1] = 0x00;
     
-// Get PMS7003 Dust sensor data from sofewareserial
-//==============================================================================
-    if(cur_time - pre_time_1 >= DLY_1000){
-    // Update previous counter time.
-    pre_time_1 = cur_time;
-    
+    for(i=0; i<31 ; i++){
+      pmsbytes[i] = Serial1.read();
 
-  if(Serial1.available()>=32){
-
-  for(int j=0; j<32 ; j++){
-    pms[j]=Serial1.read();
-    if(j<30)
-      chksum+=pms[j];
-  }
-
-  if(pms[30] != (unsigned char)(chksum>>8) 
-      || pms[31]!= (unsigned char)(chksum) ){
-      ClearPMS7003();
-      Serial1.println("PMS7003 checksum fail");
-  }else if(pms[0]!=0x42 || pms[1]!=0x4d ){
-      ClearPMS7003();
-      Serial1.println("PMS7003 STX fail");
-  }else{
-#if 1
-    Serial1.print("Dust raw data debugging :  ");
-    Serial1.print("1.0ug/m3:");
-    Serial1.print(pms[10]);
-    Serial1.print(pms[11]);
-    Serial1.print("  ");
-    Serial1.print("2.5ug/m3:");
-    Serial1.print(pms[12]);
-    Serial1.print(pms[13]);
-    Serial1.print("  ");
-    Serial1.print("2.5ug/m3:");
-    Serial1.print(pms[14]);
-    Serial1.println(pms[15]);
-#endif
-
-    PM_01=(pms[10]<<8) | pms[11];
-    PM_25=(pms[12]<<8) | pms[13];
-    PM_10=(pms[14]<<8) | pms[15];
-    } 
-  }
-
+      //check first two bytes - HEAD_1 and HEAD_2, exit when it's not normal and read again from the start
+      if( (i==0 && pmsbytes[0] != HEAD_1) || (i==1 && pmsbytes[1] != HEAD_2) ) {
+        break;
+      }
     }
-   
 
-
-
-
+    if(i>2) { // only when first two stream bytes are normal
+      if(pmsbytes[29] == 0x00) {  // only when stream error code is 0
+        PM1_0_val = (pmsbytes[10]<<8) | pmsbytes[11]; // pmsbytes[10]:HighByte + pmsbytes[11]:LowByte => two bytes
+        PM2_5_val = (pmsbytes[12]<<8) | pmsbytes[13]; // pmsbytes[12]:HighByte + pmsbytes[13]:LowByte => two bytes
+        PM10_val = (pmsbytes[14]<<8) | pmsbytes[15]; // pmsbytes[14]:HighByte + pmsbytes[15]:LowByte => two bytes
+        
+        Serial.print("PMS7003 sensor - PM1.0 : ");
+        Serial.print(PM1_0_val);
+        Serial.print(" ug/m^3,  PM2.5 : ");
+        Serial.print(PM2_5_val);
+        Serial.print(" ug/m^3,  PM10 : ");
+        Serial.print(PM10_val);
+        Serial.println(" ug/m^3");
+      } else {
+        Serial.println("Error skipped..");
+      }
+    } else {
+      Serial.println("Bad stream format error");
+    }
+  }
+  
 
   EthernetClient client = server.available();
   if (client) {
@@ -313,10 +277,18 @@ void loop() {
 
           client.print("\"Altitude\": ");
           client.print(environment.getElevation());
-          
-          
-          
-          client.println("}");
+                    client.println(",");
+
+        client.print("\"PM1.0\" : ");
+        client.print(PM1_0_val);
+        client.println(",");
+        client.print("\"PM2.5\" : ");
+        client.print(PM2_5_val);
+        client.println(",");
+        client.print("\"PM10\" : ");
+        client.print(PM10_val);
+        client.println(",");
+        client.println("}");
           
           
           break;
