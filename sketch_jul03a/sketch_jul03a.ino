@@ -287,7 +287,7 @@ void loop() {
         client.println(",");
         client.print("\"PM10\" : ");
         client.print(PM10_val);
-        client.println(",");
+        client.println("");
         client.println("}");
           
           
