@@ -4,7 +4,7 @@
 #define DLY_1000  1000
 #define HEAD_1 0x42
 #define HEAD_2 0x4d
-unsigned char pmsbytes[31];
+unsigned char pmsbytes[32];
 
 void ClearPMS7003(){
   char temp;
@@ -26,43 +26,41 @@ void setup()
 
 void loop()
 {
- 
- delay(500);
- if(Serial1.available()>=31){
-    int i=0;
+  static int CheckFirst=0;
+  static int pm_add[3][5]={0,};
+  static int pm_old[3]={0,};
+  int chksum=0,res=0;;
+  unsigned char pms[32]={0,};
+  
+  
+  if(Serial1.available()>=32){
 
-    //initialize first two bytes with 0x00
-    pmsbytes[0] = 0x00;
-    pmsbytes[1] = 0x00;
-    
-    for(i=0; i<31 ; i++){
-      pmsbytes[i] = Serial1.read();
-
-      //check first two bytes - HEAD_1 and HEAD_2, exit when it's not normal and read again from the start
-      if( (i==0 && pmsbytes[0] != HEAD_1) || (i==1 && pmsbytes[1] != HEAD_2) ) {
-        break;
-      }
+    for(int j=0; j<32 ; j++){
+      pms[j]=Serial1.read();
+      if(j<30)
+        chksum+=pms[j];
     }
 
-    if(i>2) { // only when first two stream bytes are normal
-      if(pmsbytes[29] == 0x00) {  // only when stream error code is 0
-        int PM1_0_val = (pmsbytes[10]<<8) | pmsbytes[11]; // pmsbytes[10]:HighByte + pmsbytes[11]:LowByte => two bytes
-        int PM2_5_val = (pmsbytes[12]<<8) | pmsbytes[13]; // pmsbytes[12]:HighByte + pmsbytes[13]:LowByte => two bytes
-        int PM10_val = (pmsbytes[14]<<8) | pmsbytes[15]; // pmsbytes[14]:HighByte + pmsbytes[15]:LowByte => two bytes
-        
-        Serial.print("PMS7003 sensor - PM1.0 : ");
-        Serial.print(PM1_0_val);
-        Serial.print(" ug/m^3,  PM2.5 : ");
-        Serial.print(PM2_5_val);
-        Serial.print(" ug/m^3,  PM10 : ");
-        Serial.print(PM10_val);
-        Serial.println(" ug/m^3");
-      } else {
-        Serial.println("Error skipped..");
-      }
-    } else {
-      Serial.println("Bad stream format error");
+    if(pms[30] != (unsigned char)(chksum>>8) 
+        || pms[31]!= (unsigned char)(chksum) ){
+
+      return res;
     }
-  }
+    if(pms[0]!=0x42 || pms[1]!=0x4d )
+      return res;
+
+  Serial.print("Dust raw data debugging :  ");
+  Serial.print("1.0ug/m3:");
+  Serial.print(pms[10]);
+  Serial.print(pms[11]);
+  Serial.print("  ");
+  Serial.print("2.5ug/m3:");
+  Serial.print(pms[12]);
+  Serial.print(pms[13]);
+  Serial.print("  ");
+  Serial.print("2.5ug/m3:");
+  Serial.print(pms[14]);
+  Serial.println(pms[15]);
+  } 
 
 }

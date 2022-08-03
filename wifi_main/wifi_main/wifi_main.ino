@@ -1,133 +1,94 @@
-#include <SPI.h>
-#include <Ethernet.h>
+
+
+#include "WizFi360.h"
+#include "PMS.h"
 
 //#include <Adafruit_SSD1306.h> //OLED
 #include "DFRobot_MICS.h" //가스센서
 #include "DFRobot_EnvironmentalSensor.h" //환경센서
 #include "DFRobot_OxygenSensor.h" //산소센서
 
+/* Baudrate */
+#define SERIAL_BAUDRATE   115200
+#define SERIAL2_BAUDRATE  115200
 
 
-
-//for PMS sensor
-
-//초기화
-//이더넷
-byte mac[] = {0xDE, 0xAD, 0xBE, 0xEF, 0xFE, 0xED};
-IPAddress ip(192, 168, 0, 177);
-EthernetServer server(80);
 //OLED
 //#define SCREEN_WIDTH 128              // OLED 디스플레이의 가로 픽셀수
 //#define SCREEN_HEIGHT 32
 //#define OLED_RESET     -1
 //Adafruit_SSD1306 display(SCREEN_WIDTH, SCREEN_HEIGHT, &Wire, OLED_RESET);
 //가스센서
-#define CALIBRATION_TIME   3             // 추천값 3
+#define CALIBRATION_TIME   0.1             // 추천값 3
 #define COLLECT_NUMBER    10             // collect number, the collection range is 1-100.
-DFRobot_MICS_I2C mics(&Wire, 0x78);
+DFRobot_MICS_I2C mics(&Wire1, 0x78);
 //환경센서
-DFRobot_EnvironmentalSensor environment(/*addr = */0x22, /*pWire = */&Wire);
+DFRobot_EnvironmentalSensor environment(/*addr = */0x22, /*pWire = */&Wire1);
 //산소센서
-DFRobot_OxygenSensor Oxygen;
+DFRobot_OxygenSensor Oxygen(0x73, &Wire1);
 //미세먼지
-unsigned char pmsbytes[31];
-#define HEAD_1 0x42
-#define HEAD_2 0x4d
-#define DLY_5000  5000
-#define DLY_1000  1000
-//RS232
+PMS pms(Serial1);
+PMS::DATA data;
 
 
-//void displayWithMsg(String msg){
-//  display.clearDisplay();
-//  display.setTextSize(1);
-//  display.setTextColor(WHITE);
-//  display.setCursor(0,0);
-//  display.print("IP : ");
-//  display.println(Ethernet.localIP());
-//  byte error, address; //variable for error and I2C address
-//  int nDevices=0;
-//  display.print("I2C : ");
-//  for (address = 1; address < 127; address++ )
-//  {
-//    // The i2c_scanner uses the return value of
-//    // the Write.endTransmisstion to see if
-//    // a device did acknowledge to the address.
-//    Wire.beginTransmission(address);
-//    error = Wire.endTransmission();
-//
-//    if (error == 0)
-//    {
-//
-//      Serial.print("I2C device found at address 0x");
-//      if (address < 16)
-//      Serial.print("0");
-//      Serial.print(address, HEX);
-//      Serial.println("  !");
-//      display.setCursor(30+nDevices*20,8);
-//      display.print(address, HEX);
-//      nDevices++;
-//    }
-//  }
-//  display.setCursor(0,16);
-//  display.print(msg);//CALIBRATION_TIME*60-count);
-//  display.display();
-//  
-//}
+/* Wi-Fi info */
+char ssid[] = "yd2";       // your network SSID (name)
+char pass[] = "123a123a11";   // your network password
+int status = WL_IDLE_STATUS;  // the Wifi radio's status
+int reqCount = 0;             // number of requests received
+WiFiServer server(80);
 
 void setup() {
-//LED
- pinMode(LED_BUILTIN, OUTPUT);
- digitalWrite(LED_BUILTIN, HIGH);   // turn the LED on (HIGH is the voltage level)
-//PICO
-  Serial.begin(9600);
-//미세먼지
-  Serial1.begin(9600);
-//RS232
-  Serial2.begin(9600);
+  Wire1.setSDA(2);
+Wire1.setSCL(3);
+
+Wire1.begin(); // Wire communication begin
+
+  Wire1.setClock(100000);
+
+  
+  pinMode(LED_BUILTIN, OUTPUT);
+  // initialize serial for debugging
+  Serial.begin(SERIAL_BAUDRATE);
+  //미세먼지
+  Serial1.begin(9600);  
+  pms.wakeUp();
+  // initialize serial for WizFi360 module
+  Serial2.begin(SERIAL2_BAUDRATE);
+
+  WiFi.init(&Serial2);
 
 
-//이더넷
-  Ethernet.init(17);  // GPIO17 WIZnet W5100S-EVB-Pico
-  Ethernet.begin(mac, ip);
-  // Check for Ethernet hardware present
-  while (true) {
-    if (Ethernet.hardwareStatus() == EthernetNoHardware) {    
-      delay(1); // do nothing, no point running without Ethernet hardware
-      Serial.println("Ethernet shield was not found.  Sorry, can't run without hardware. :(");
-    }else{
-      break;
-    }
+  //Wifi
+  if (WiFi.status() == WL_NO_SHIELD) {
+    Serial.println("WiFi shield not present");
+    // don't continue
     
   }
-  if (Ethernet.linkStatus() == LinkOFF) {
-    Serial.println("Ethernet cable is not connected.");
+  // attempt to connect to WiFi network
+  while ( status != WL_CONNECTED) {
+    Serial.print("Attempting to connect to WPA SSID: ");
+    Serial.println(ssid);
+    // Connect to WPA/WPA2 network
+    status = WiFi.begin(ssid, pass);
   }
+  // start the web server on port 80
   server.begin();
-//OLED
-//  display.begin(SSD1306_SWITCHCAPVCC, 0x3C);
-//  display.clearDisplay();
-
-//I2C, Ethernet Info Display
-  
-  Serial.println(Ethernet.localIP());
-  
 
 
-
-//환경센서
-while(environment.begin() != 0){
+  //환경센서
+  while(environment.begin() != 0){
     Serial.println(" environment Sensor initialize failed!!");
     delay(1000);
   }
   Serial.println(" environment Sensor  initialize success!!");
-//산소센서
-  while(!Oxygen.begin(0x73)) {
+  //산소센서
+  while(!Oxygen.begin()) {
     Serial.println(" Oxygen I2c device number error !");
     delay(1000);
   }
 
-//가스센서
+  //가스센서
  while(!mics.begin()){
     Serial.println("mics NO Deivces !");
     delay(1000);
@@ -142,7 +103,7 @@ while(environment.begin() != 0){
   int count = 0;
   while(!mics.warmUpTime(CALIBRATION_TIME)){
     Serial.println("Please wait until the warm-up time is over!");
-//    displayWithMsg(String(CALIBRATION_TIME*60-count));
+  //    displayWithMsg(String(CALIBRATION_TIME*60-count));
     delay(1000);
     count++;
   digitalWrite(LED_BUILTIN, HIGH);   // turn the LED on (HIGH is the voltage level)
@@ -151,10 +112,10 @@ while(environment.begin() != 0){
   delay(100);
   
   }
-
-
-
+  
 }
+
+
 
 int PM1_0_val=0;
 int PM2_5_val=0;
@@ -166,68 +127,42 @@ int PM10_val=0;
 //산소센서
 //미세먼지
 //RS232
+uint16_t pm1;
+uint16_t pm2;
+uint16_t pm10;
 
 void loop() {
-
-  
-//  displayWithMsg("working");   
-  if(Serial1.available()>=31){
-      
-  digitalWrite(LED_BUILTIN, HIGH);   // turn the LED on (HIGH is the voltage level)
-  
-  
-  
-    int i=0;
-
-    //initialize first two bytes with 0x00
-    pmsbytes[0] = 0x00;
-    pmsbytes[1] = 0x00;
+  if (pms.read(data))
+  {
     
-    for(i=0; i<31 ; i++){
-      pmsbytes[i] = Serial1.read();
-
-      //check first two bytes - HEAD_1 and HEAD_2, exit when it's not normal and read again from the start
-      if( (i==0 && pmsbytes[0] != HEAD_1) || (i==1 && pmsbytes[1] != HEAD_2) ) {
-        break;
-      }
-    }
-
-    if(i>2) { // only when first two stream bytes are normal
-      if(pmsbytes[29] == 0x00) {  // only when stream error code is 0
-        PM1_0_val = (pmsbytes[10]<<8) | pmsbytes[11]; // pmsbytes[10]:HighByte + pmsbytes[11]:LowByte => two bytes
-        PM2_5_val = (pmsbytes[12]<<8) | pmsbytes[13]; // pmsbytes[12]:HighByte + pmsbytes[13]:LowByte => two bytes
-        PM10_val = (pmsbytes[14]<<8) | pmsbytes[15]; // pmsbytes[14]:HighByte + pmsbytes[15]:LowByte => two bytes
-        
-        Serial.print("PMS7003 sensor - PM1.0 : ");
-        Serial.print(PM1_0_val);
-        Serial.print(" ug/m^3,  PM2.5 : ");
-        Serial.print(PM2_5_val);
-        Serial.print(" ug/m^3,  PM10 : ");
-        Serial.print(PM10_val);
-        Serial.println(" ug/m^3");
-      } else {
-        Serial.println("Error skipped..");
-      }
-    } else {
-      Serial.println("Bad stream format error");
-    }
+   pm1=data.PM_AE_UG_1_0;
+   pm2=data.PM_AE_UG_2_5;
+   pm10=data.PM_AE_UG_2_5;
   }
-  
 
-  EthernetClient client = server.available();
+  
+  WiFiClient client = server.available();
   if (client) {
-    
+    pms.read(data);
+    digitalWrite(LED_BUILTIN, HIGH);   // turn the LED on (HIGH is the voltage level)
     // an http request ends with a blank line
-    bool currentLineIsBlank = true;
+    boolean currentLineIsBlank = true;
     while (client.connected()) {
       if (client.available()) {
         char c = client.read();
         Serial.write(c);
         // if you've gotten to the end of the line (received a newline
-        // character) and the line is blank, the http request has ended,
+        // character) and the line is
+        Serial.println("New client"); //blank, the http request has ended,
         // so you can send a reply
         if (c == '\n' && currentLineIsBlank) {
+          Serial.println("Sending response");
+          
           // send a standard http response header
+          // use \r\n instead of many println statements to speedup data send
+
+
+
           client.println("HTTP/1.1 200 OK");
           client.println("Content-Type: application/json");
           client.println("Connection: close");  // the connection will be closed after completion of the response
@@ -296,36 +231,37 @@ void loop() {
           client.print("\"Altitude\": ");
           client.print(environment.getElevation());
                     client.println(",");
-
+  
         client.print("\"PM1.0\" : ");
-        client.print(PM1_0_val);
+        client.print(pm1);
         client.println(",");
         client.print("\"PM2.5\" : ");
-        client.print(PM2_5_val);
+        client.print(pm2);
         client.println(",");
         client.print("\"PM10\" : ");
-        client.print(PM10_val);
+        client.print(pm10);
         client.println("");
         client.println("}");
-          
-          
+
+        
           break;
         }
         if (c == '\n') {
           // you're starting a new line
           currentLineIsBlank = true;
-        } else if (c != '\r') {
+        }
+        else if (c != '\r') {
           // you've gotten a character on the current line
           currentLineIsBlank = false;
         }
       }
     }
     // give the web browser time to receive the data
-    delay(1);
+    delay(10);
+
     // close the connection:
     client.stop();
-    Serial.println("client disconnected");
-    digitalWrite(LED_BUILTIN, LOW);    // turn the LED off by making the voltage LOW
+    Serial.println("Client disconnected");
   }
 
 }
