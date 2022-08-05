@@ -52,6 +52,7 @@ Wire1.begin(); // Wire communication begin
   Serial.begin(SERIAL_BAUDRATE);
   //미세먼지
   Serial1.begin(9600);  
+  
   pms.wakeUp();
   // initialize serial for WizFi360 module
   Serial2.begin(SERIAL2_BAUDRATE);
@@ -132,25 +133,33 @@ uint16_t pm2;
 uint16_t pm10;
 
 void loop() {
+
+
   if (pms.read(data))
   {
-    
-   pm1=data.PM_AE_UG_1_0;
-   pm2=data.PM_AE_UG_2_5;
-   pm10=data.PM_AE_UG_2_5;
+ 
+
+
+    Serial.print("PM 1.0 (ug/m3): ");
+    Serial.println(data.PM_AE_UG_1_0);
+
+    Serial.print("PM 2.5 (ug/m3): ");
+    Serial.println(data.PM_AE_UG_2_5);
+
+    Serial.print("PM 10.0 (ug/m3): ");
+    Serial.println(data.PM_AE_UG_10_0);
+
+    Serial.println();
   }
 
-  
   WiFiClient client = server.available();
   if (client) {
-    pms.read(data);
     digitalWrite(LED_BUILTIN, HIGH);   // turn the LED on (HIGH is the voltage level)
     // an http request ends with a blank line
     boolean currentLineIsBlank = true;
     while (client.connected()) {
       if (client.available()) {
-        char c = client.read();
-        Serial.write(c);
+        char c = client.read();        
         // if you've gotten to the end of the line (received a newline
         // character) and the line is
         Serial.println("New client"); //blank, the http request has ended,
@@ -165,8 +174,8 @@ void loop() {
 
           client.println("HTTP/1.1 200 OK");
           client.println("Content-Type: application/json");
-          client.println("Connection: close");  // the connection will be closed after completion of the response
-          client.println("Refresh: 5");  // refresh the page automatically every 5 sec
+          client.println("Connection: keepalive");  // the connection will be closed after completion of the response
+          
           client.println();
           
           
@@ -231,15 +240,17 @@ void loop() {
           client.print("\"Altitude\": ");
           client.print(environment.getElevation());
                     client.println(",");
-  
+
+
+
         client.print("\"PM1.0\" : ");
-        client.print(pm1);
+        client.print(data.PM_AE_UG_1_0);
         client.println(",");
         client.print("\"PM2.5\" : ");
-        client.print(pm2);
+        client.print(data.PM_AE_UG_2_5);
         client.println(",");
         client.print("\"PM10\" : ");
-        client.print(pm10);
+        client.print(data.PM_AE_UG_10_0);
         client.println("");
         client.println("}");
 
@@ -262,6 +273,7 @@ void loop() {
     // close the connection:
     client.stop();
     Serial.println("Client disconnected");
+    digitalWrite(LED_BUILTIN, LOW);   // turn the LED on (HIGH is the voltage level)
   }
 
 }
