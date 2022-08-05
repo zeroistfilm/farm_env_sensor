@@ -6,10 +6,11 @@ Serial1.begin(9600);
 
 bool flag = false;
 char receivedBuff[9]={0,};
-
+float weight=0;
 void loop() {
-
+  
   if (Serial1.available()){
+
      if(flag != true){
               byte x = Serial1.read();
               if(x == 0x02)
@@ -20,18 +21,39 @@ void loop() {
                  byte m = Serial1.readBytesUntil(0x03, receivedBuff, 9); //0x03 is not saved
                  receivedBuff[m] = '\0'; //insert null-character for EOF;
                  if (validateData(receivedBuff)){
-                    float weight = parseBuff(receivedBuff);
-                    Serial.println(weight,3);
-                 }else{
-                  Serial.print(receivedBuff);
-                  Serial.println("error");
+                    weight = parseBuff(receivedBuff);                    
+                    Serial.println(weight);
                  }
 
                  memset(receivedBuff, 0x00, 9);
                  flag = false;
-          }
+       }
+    
   }
 }
+
+//float readSerial(Stream &port){
+//     bool flag = false;
+//     char receivedBuff[9]={0,};
+//     float weight=0;
+//     if(flag != true){
+//              byte x = port.read();
+//              if(x == 0x02)
+//              {
+//                   flag = true;                 //STX has arrived
+//              }
+//      }else{
+//                 byte m = port.readBytesUntil(0x03, receivedBuff, 9); //0x03 is not saved
+//                 receivedBuff[m] = '\0'; //insert null-character for EOF;
+//                 if (validateData(receivedBuff)){
+//                    weight = parseBuff(receivedBuff);                    
+//                 }
+//
+//                 memset(receivedBuff, 0x00, 9);
+//                 flag = false;
+//       }
+//       return weight;
+//}
 
 
 bool validateData(char buff[]){

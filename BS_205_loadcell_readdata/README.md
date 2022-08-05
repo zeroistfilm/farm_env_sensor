@@ -9,9 +9,9 @@ https://www.youtube.com/watch?v=98AfvAG5bKc
 - rC.on : OFF (continuous commuication)
 
 ### RS232 Docs  
-![img_2.png](img_2.png)
-![img.png](img.png)
-![img_1.png](img_1.png)
+![img_2.png](img_2.png)  
+![img.png](img.png)  
+![img_1.png](img_1.png)  
 
 
 ### Use device  
