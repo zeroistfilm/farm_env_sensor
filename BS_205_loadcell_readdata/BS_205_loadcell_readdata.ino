@@ -21,7 +21,7 @@ void loop() {
                  byte m = Serial1.readBytesUntil(0x03, receivedBuff, 9); //0x03 is not saved
                  receivedBuff[m] = '\0'; //insert null-character for EOF;
                  if (validateData(receivedBuff)){
-                    weight = parseBuff(receivedBuff);                    
+                    weight = parseBuff(&receivedBuff);                    
                     Serial.println(weight);
                  }
 
@@ -100,7 +100,7 @@ bool isPlusMinus(char c){
 
 }
 
-float parseBuff(char buff[]){
+float parseBuff(char *buff[]){
   char tmp[6];
   for (int i=2; i<=8;i++){
      tmp[i-2] = buff[i];

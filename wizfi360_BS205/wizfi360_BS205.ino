@@ -1,7 +1,7 @@
 #include "WizFi360.h"
 
 /* Wi-Fi info */
-char ssid[] = "yd2";       // your network SSID (name)
+char ssid[] = "uniai";       // your network SSID (name)
 char pass[] = "123a123a11";   // your network password
 int status = WL_IDLE_STATUS;  // the Wifi radio's status
 int reqCount = 0;             // number of requests received
@@ -16,7 +16,7 @@ void setup() {
   Serial.begin(9600);
   Serial1.begin(9600);  
   Serial2.begin(SERIAL2_BAUDRATE);
-
+  pinMode(LED_BUILTIN, OUTPUT);
   WiFi.init(&Serial2);
 
 
@@ -50,6 +50,7 @@ void loop() {
  if (Serial1.available()){
 
      if(flag != true){
+              digitalWrite(LED_BUILTIN, HIGH);
               byte x = Serial1.read();
               if(x == 0x02)
               {
@@ -58,6 +59,7 @@ void loop() {
       }else{
                  byte m = Serial1.readBytesUntil(0x03, receivedBuff, 9); //0x03 is not saved
                  receivedBuff[m] = '\0'; //insert null-character for EOF;
+                 Serial.println(receivedBuff);
                  if (validateData(receivedBuff)){
                     weight = parseBuff(receivedBuff);                    
                     Serial.println(weight);
@@ -65,6 +67,7 @@ void loop() {
 
                  memset(receivedBuff, 0x00, 9);
                  flag = false;
+                 digitalWrite(LED_BUILTIN, LOW);
        }
     
   }

@@ -19,7 +19,7 @@
 //#define OLED_RESET     -1
 //Adafruit_SSD1306 display(SCREEN_WIDTH, SCREEN_HEIGHT, &Wire, OLED_RESET);
 //가스센서
-#define CALIBRATION_TIME   0.1             // 추천값 3
+#define CALIBRATION_TIME   3            // 추천값 3
 #define COLLECT_NUMBER    10             // collect number, the collection range is 1-100.
 DFRobot_MICS_I2C mics(&Wire1, 0x78);
 //환경센서
@@ -32,7 +32,7 @@ PMS::DATA data;
 
 
 /* Wi-Fi info */
-char ssid[] = "yd2";       // your network SSID (name)
+char ssid[] = "uniai";       // your network SSID (name)
 char pass[] = "123a123a11";   // your network password
 int status = WL_IDLE_STATUS;  // the Wifi radio's status
 int reqCount = 0;             // number of requests received

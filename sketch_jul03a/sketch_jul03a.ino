@@ -28,7 +28,7 @@ DFRobot_MICS_I2C mics(&Wire, 0x78);
 //환경센서
 DFRobot_EnvironmentalSensor environment(/*addr = */0x22, /*pWire = */&Wire);
 //산소센서
-DFRobot_OxygenSensor Oxygen;
+DFRobot_OxygenSensor Oxygen(0x73, &Wire);
 //미세먼지
 unsigned char pmsbytes[31];
 #define HEAD_1 0x42
@@ -89,7 +89,8 @@ void setup() {
 
 //이더넷
   Ethernet.init(17);  // GPIO17 WIZnet W5100S-EVB-Pico
-  Ethernet.begin(mac, ip);
+  //Ethernet.begin(mac, ip); //No dhcp
+  Ethernet.begin(mac); //dhcp
   // Check for Ethernet hardware present
   while (true) {
     if (Ethernet.hardwareStatus() == EthernetNoHardware) {    
@@ -122,7 +123,7 @@ while(environment.begin() != 0){
   }
   Serial.println(" environment Sensor  initialize success!!");
 //산소센서
-  while(!Oxygen.begin(0x73)) {
+  while(!Oxygen.begin()) {
     Serial.println(" Oxygen I2c device number error !");
     delay(1000);
   }
