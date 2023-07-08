@@ -1,10 +1,11 @@
 #include "WizFi360.h"
 
 /* Wi-Fi info */
-char ssid[] = "uniai";       // your network SSID (name)
+char ssid[] = "yd2";       // your network SSID (name)
 char pass[] = "123a123a11";   // your network password
 int status = WL_IDLE_STATUS;  // the Wifi radio's status
 int reqCount = 0;             // number of requests received
+IPAddress ip(172, 30, 1, 100);
 WiFiServer server(80);
 
 #define SERIAL_BAUDRATE   115200
