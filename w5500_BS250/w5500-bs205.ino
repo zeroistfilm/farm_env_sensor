@@ -1,13 +1,19 @@
 #include <Ethernet.h>
+#include <EthernetUdp.h>
+#include <NTPClient.h>
 #include <ArduinoJson.h>
+#include <ctime>
+
 
 byte mac[] = {0x36, 0xD1, 0x1E, 0x9C, 0xA5, 0xDE};
-IPAddress ip(192, 168, 0, 190);
+IPAddress ip(192, 168, 10, 171);
 //IPAddress ip(192, 168, 10, 190);
 //byte gateway[] = { 192, 168, 10, 254 };
 //byte subnet[] = { 255, 255, 255, 0 };
 //byte dns[] = { 168, 126, 63, 1 };
 EthernetServer server(80);
+EthernetUDP ntpUDP;
+NTPClient timeClient(ntpUDP, "pool.ntp.org", 32400, 60000);
 
 void setup()
 {
@@ -19,6 +25,9 @@ void setup()
   server.begin();
   Serial.begin(9600);
   Serial1.begin(9600);  // for RS232
+
+   // NTP 클라이언트 시작
+  timeClient.begin();
 }
 
 bool flag = false;
@@ -27,7 +36,10 @@ float weight=0;
 
 void loop()
 {
+  timeClient.update();
 
+  // 현재 시간을 가져옵니다.
+  //Serial.println(timeClient.getFormattedTime());
    if (Serial1.available()){
 
      if(flag != true){
@@ -82,6 +94,8 @@ void loop()
               client.println("Connection: close");
               client.println();
               doc["weight"] = weight;
+              doc["timestamp"] = formatEpochToKSTString();
+              doc["unixtime"] = timeClient.getEpochTime();
               serializeJson(doc, client);
             }
             break;
@@ -101,6 +115,18 @@ void loop()
     client.stop();
   }
 }
+
+String formatEpochToKSTString() {
+    unsigned long epoch = timeClient.getEpochTime();
+
+    time_t rawtime = (time_t)epoch;
+    struct tm * ptm = gmtime(&rawtime);
+
+    char buffer[20];
+    snprintf(buffer, sizeof(buffer), "%04d%02d%02d_%02d:%02d:%02dI", ptm->tm_year + 1900, ptm->tm_mon + 1, ptm->tm_mday, ptm->tm_hour, ptm->tm_min, ptm->tm_sec);
+    return String(buffer);
+}
+
 
 bool validateData(char buff[]){
   if (strlen(buff)!=8) return false;
