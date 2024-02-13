@@ -43,7 +43,7 @@ void initLight(){
 void setup()
 {
   pinMode(LED_BUILTIN, OUTPUT);
-  
+  pinMode(13, OUTPUT);
   pinMode(14, OUTPUT);
   pinMode(15, OUTPUT);
   initLight();
@@ -166,9 +166,13 @@ void loop()
                 long delayTime = millisValue.toInt(); // 문자열을 long 형으로 변환
 
                 // 추출한 딜레이 값으로 릴레이(또는 LED) 제어
+                digitalWrite(13, HIGH); // 첫 번째 릴레이 ON
+                delay(500);
                 digitalWrite(14, HIGH); // 첫 번째 릴레이 ON
                 delay(delayTime); // 추출한 시간만큼 대기
                 digitalWrite(14, LOW); // 첫 번째 릴레이 OFF
+                delay(500);
+                digitalWrite(13, LOW); // 첫 번째 릴레이 OFF
                 StaticJsonDocument<1024> doc; 
                 doc["message"] = "send command to relay ";
                 client.println("HTTP/1.1 200 OK");
@@ -187,9 +191,13 @@ void loop()
                 long delayTime = millisValue.toInt(); // 문자열을 long 형으로 변환
 
                 StaticJsonDocument<1024> doc; 
+                digitalWrite(13, HIGH); // 첫 번째 릴레이 ON
+                delay(500);
                 digitalWrite(15, HIGH); // 첫 번째 릴레이 ON
                 delay(delayTime); // 추출한 시간만큼 대기
                 digitalWrite(15, LOW); // 첫 번째 릴레이 OFF
+                delay(500);
+                digitalWrite(13, LOW); // 첫 번째 릴레이 ON
                 doc["message"] = "send command to relay ";
                 client.println("HTTP/1.1 200 OK");
                 client.println("Content-Type: application/json");
