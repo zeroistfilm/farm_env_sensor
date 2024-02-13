@@ -3,25 +3,51 @@
 #include <NTPClient.h>
 #include <ArduinoJson.h>
 #include <ctime>
+#include "pico/stdlib.h"
+#include "hardware/watchdog.h"
 
 
-byte mac[] = {0x36, 0xD1, 0x1E, 0x9C, 0xA5, 0x01};
-IPAddress ip(10, 4, 3, 30);
-byte gateway[] = { 10, 4, 0, 1 };
+IPAddress ip(10, 0, 0, 30);
+byte gateway[] = { 10, 0, 0, 1 };
 byte subnet[] = { 255, 255, 0, 0 };
+byte dns[] = { 1, 1, 1, 1 };
+byte mac[6];  //{0x36, 0xD1, 0x1E, 0x9C, 0xA5, 0x01};
+
 
 //IPAddress ip(192, 168, 0, 190);
 //byte gateway[] = { 192, 168, 0, 99 };
 //byte subnet[] = { 255, 255, 255, 0 };
-byte dns[] = { 1, 1, 1, 1 };
+
 
 EthernetServer server(80);
 EthernetUDP ntpUDP;
 NTPClient timeClient(ntpUDP, "pool.ntp.org", 32400, 60000);
 
+unsigned long lastHttpRequestTime = 0; // 마지막 HTTP 요청 시간을 밀리초 단위로 저장
+const unsigned long rebootTimeout = 5*60*1000; // 5분을 밀리초 단위로 변환 (5 * 60 * 1000)
+
+void soft_reset() {
+    watchdog_enable(1, 1); // Enable the watchdog with a 1ms timeout
+    while (true); // Wait for the watchdog to trigger a reset
+}
+
+void initLight(){
+  for (int i = 0; i < 4; i++) {
+  digitalWrite(LED_BUILTIN, HIGH);  // turn the LED on (HIGH is the voltage level)
+  delay(500);                      // wait for a second
+  digitalWrite(LED_BUILTIN, LOW);   // turn the LED off by making the voltage LOW
+  delay(500);   
+  }
+}
+
 void setup()
 {
   pinMode(LED_BUILTIN, OUTPUT);
+  
+  pinMode(14, OUTPUT);
+  pinMode(15, OUTPUT);
+  initLight();
+  ipToMac(ip, mac);
   Ethernet.init(17);
   //Ethernet.begin(mac, ip);/
   //Ethernet.begin(mac); // DHCP
@@ -40,6 +66,8 @@ float weight=0;
 
 void loop()
 {
+
+
   timeClient.update();
 
   // 현재 시간을 가져옵니다.
@@ -70,6 +98,12 @@ void loop()
   }
 
 
+  if (millis() - lastHttpRequestTime > rebootTimeout) {
+    // 5분이 경과했다면 재부팅 수행
+    Serial.println("5분 동안 HTTP 요청이 없어 재부팅합니다.");
+    soft_reset(); 
+  }
+
   EthernetClient client = server.available();
 
     if (client) {
@@ -80,12 +114,14 @@ void loop()
     while (client.connected()) {
       if (client.available()) {
         char c = client.read();
+        lastHttpRequestTime = millis();
+
         if (c == '\n') {
           if (currentLine.length() == 0) {
             if (httpMethod == "GET" && httpUrl == "/reset") {
               Serial1.write(0x35);
               Serial1.write(0x5A);
-              DynamicJsonDocument doc(1024);
+              StaticJsonDocument<1024> doc; 
               doc["message"] = "Reset command sent to Serial1";
               client.println("HTTP/1.1 200 OK");
               client.println("Content-Type: application/json");
@@ -111,7 +147,7 @@ void loop()
                         char c = Serial1.read(); // Read the incoming byte
                         rs232Response += c; // Append the byte to the rs232Response String
                       }
-                        DynamicJsonDocument doc(1024);
+                        StaticJsonDocument<1024> doc; 
                         client.println("HTTP/1.1 200 OK");
                         client.println("Content-Type: applicatio n/json");
                         client.println("Connection: close");
@@ -121,10 +157,51 @@ void loop()
                         doc["unixtime"] = timeClient.getEpochTime();
                         serializeJson(doc, client);
                     }
+            }else if (httpMethod == "GET" && httpUrl.startsWith("/relayOn")) {
+              int pos = httpUrl.indexOf("millis=");
+              if (pos != -1) {
+                int startPos = pos + 7; // "millis=" 다음 위치
+                int endPos = httpUrl.indexOf('&', startPos); // 추가 파라미터가 있다면 '&' 위치 찾기
+                String millisValue = httpUrl.substring(startPos, endPos != -1 ? endPos : httpUrl.length());
+                long delayTime = millisValue.toInt(); // 문자열을 long 형으로 변환
+
+                // 추출한 딜레이 값으로 릴레이(또는 LED) 제어
+                digitalWrite(14, HIGH); // 첫 번째 릴레이 ON
+                delay(delayTime); // 추출한 시간만큼 대기
+                digitalWrite(14, LOW); // 첫 번째 릴레이 OFF
+                StaticJsonDocument<1024> doc; 
+                doc["message"] = "send command to relay ";
+                client.println("HTTP/1.1 200 OK");
+                client.println("Content-Type: application/json");
+                client.println("Connection: close");
+                client.println();
+                serializeJson(doc, client);
+              }
+
+            }else if (httpMethod == "GET" && httpUrl.startsWith("/relayOff")) {
+              int pos = httpUrl.indexOf("millis=");
+              if (pos != -1) {
+                int startPos = pos + 7; // "millis=" 다음 위치
+                int endPos = httpUrl.indexOf('&', startPos); // 추가 파라미터가 있다면 '&' 위치 찾기
+                String millisValue = httpUrl.substring(startPos, endPos != -1 ? endPos : httpUrl.length());
+                long delayTime = millisValue.toInt(); // 문자열을 long 형으로 변환
+
+                StaticJsonDocument<1024> doc; 
+                digitalWrite(15, HIGH); // 첫 번째 릴레이 ON
+                delay(delayTime); // 추출한 시간만큼 대기
+                digitalWrite(15, LOW); // 첫 번째 릴레이 OFF
+                doc["message"] = "send command to relay ";
+                client.println("HTTP/1.1 200 OK");
+                client.println("Content-Type: application/json");
+                client.println("Connection: close");
+                client.println();
+                serializeJson(doc, client);
+              }
+              
             }
             else if (httpMethod == "GET" && httpUrl == "/") {
 
-              DynamicJsonDocument doc(1024);
+              StaticJsonDocument<1024> doc; 
               client.println("HTTP/1.1 200 OK");
               client.println("Content-Type: application/json");
               client.println("Connection: close");
@@ -166,10 +243,16 @@ String formatEpochToKSTString() {
 
 
 
-
-// 01234567
-// -   1.02
-
+void ipToMac(IPAddress ip, byte *mac) {
+  // MAC 주소의 첫 2바이트는 고정값으로 설정
+  mac[0] = 0xAA;
+  mac[1] = 0xBB;
+  
+  // IP 주소의 각 바이트를 MAC 주소의 나머지 바이트로 설정
+  for (int i = 0; i < 4; i++) {
+    mac[i + 2] = ip[i];
+  }
+}
 
 float parseBuff(char buff[]){
   char tmp[6];
