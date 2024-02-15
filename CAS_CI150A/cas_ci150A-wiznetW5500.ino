@@ -157,7 +157,7 @@ void loop()
                         doc["unixtime"] = timeClient.getEpochTime();
                         serializeJson(doc, client);
                     }
-            }else if (httpMethod == "GET" && httpUrl.startsWith("/relayOn")) {
+            }else if (httpMethod == "GET" && httpUrl.startsWith("/up")) {
               int pos = httpUrl.indexOf("millis=");
               if (pos != -1) {
                 int startPos = pos + 7; // "millis=" 다음 위치
@@ -182,7 +182,7 @@ void loop()
                 serializeJson(doc, client);
               }
 
-            }else if (httpMethod == "GET" && httpUrl.startsWith("/relayOff")) {
+            }else if (httpMethod == "GET" && httpUrl.startsWith("/down")) {
               int pos = httpUrl.indexOf("millis=");
               if (pos != -1) {
                 int startPos = pos + 7; // "millis=" 다음 위치
